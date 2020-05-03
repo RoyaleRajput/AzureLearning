@@ -1,0 +1,378 @@
+Azure Active Directory is an Identity store.
+
+Installation:
+- Server should be domain Joined.
+- By default we can add 50K objects in Azure AD, when you verify your domain the limit gets increased to 300K.
+- You need Global Admin credentials of the tanent.
+- By default in Express installation SQL express is installed with the setup which has a limit of 10GB, if you have more than 100K objects use full SQL instance.
+
+Methods:
+- Password Synchronization
+- Pass through Authentication
+- Federation with ADFS or PingFederate
+
+Accounts: 3 accounts created when you install AAD connect
+- Msol_664p69(AD DS connector account) : srvIDENT_MA_A
+	This account is used for read/write
+- Sync_764..(Azure AD connector account) format(Sync_ServerNameWhereAADConnectInstalled_GUID)
+	This account is used for read/write operations on Azure AD.
+- Service account- AAD (AD sync service account) : srvIDENT_LCL_A
+
+Groups: 4 Groups
+- ADSyncAdmins
+- ADSyncBrowse
+- ADSyncOperators
+- ADSyncPasswordSet
+
+Troubleshooting for AADConnect installation issue(AAD Connect Logs):
+C:\ProgramData\AADConnect\
+Computer Account if you enable the SSO option while installation: AZUREADSSOACC
+
+Sync Process:
+1. Query all the AD objects from on-prem AD.
+2. sync
+3. Export
+
+
+AAD Connect Architecture Fundamentals:
+- Delta Sync
+- Full Sync: Entire object and respective attributes have been queried.
+
+Three Phase:
+Import: to connector space of AD from Active Directory Database, Import to Connector space of AAD from Azure AD
+Sync:  from connector Space of AD to Metaverse, From Conector space of AAD to metaverse
+Export: from metaverse to connector space of AAD and from Connector space of AAD to Azuer AD.
+Awaiting Export Confirmation flags very useful for troubleshooting related to Sync.
+
+Synchronization Rule Editor:
+Connector Configuration
+Objects and Attributes
+Check rules based on Attribute
+Attrinbute Mapping
+We can add the attribute which are not showing under connector space.
+
+Person: it's user and if contact is not merge with User then it also shows as person.
+
+Custom Sync Rule:
+Start-adsyncsynccycle -policytype Initial
+* Group of a member should not sync to AAD.
+* Based on Attribute
+* Attribute Mapping
+++++++++++++++++++
+
+Azure Active Directory group
+-----------------------------
+1. Cloud Group
+	1. Security: MailEnabled is false, available for Assignment of License/applications
+	2. Office365: ByDefault MailEnabled set to true, Assignment of License/applications
+2. Synced Group: Distribution group synced from onprem or Distribution Group created from Office portal, will not be available for the license and application assignment but security group will be available for application or license assignment.
+
+
+Group type based on members:
+1. Owner: can add member
+2. Member
+
+ByDefault all the users can create office group.
+
+Group Type:
+1. Security: MailEnabled is false, Assignment of License/applications
+2. Office365: ByDefault MailEnabled set to true, Assignment of License/applications
+
+Membership type:
+1. Assigned
+2. Dynamic User
+3. Dynamic Device
+
+Group Expiration setting only will apply to office365 group.
+
+Office365 groups Type:
+1. Office 365: Groups are group email and a shared workspace for conversation, files and calendar events.
+2. Distribution lists: send email to all members of the list. you can even allow people outside your organisation send email to a list.
+3. Mail-enabled security: groups can be used to control access to OneDrive and SharePoint as we as to send email to all members of the list.
+4. Security: groups control access to OneDrive and SharePoint and are used for Mobile Device management for Office 365.
+
+Get-AzureADGroup
+++++++++++++++++++++++++++++++
+
+Azure Active Directory Devices:
+Feature for User: SSO
+For Admin: 
+	managing Devices
+	Device Identities
+	Device based conditional access
+
+Trypes of Devices in AAD:
+1. Azure AD Registered: Personal email or local accounts[Windows 10, IOS, Android, MAC OS]
+2. Azure AD joined: Azure AD Account[Windows 10]
+3. Hybrid Azure AD joined Devices: Azure AD Accounts-Devices are domain joined as well as Azure AD Joined[windows7,8,10, windows server 2008 or newer]
+
+For Condtitional Access two devices:
+1. Hybrid Azure AD joined Devices
+2. Compliant Devices
+
+*Azure AD Registered Device:
+User has to register the device, Device object is created and a certificate(Issued by MS-Organisation-Access) is purged to that device so that AAD can trust that particular device. ID(in AAD) available on device should be issued to certificate on particular machine.
+if a user login to the device with different local account, the same SSO won't be available as that is registered with different local user and have different cert in cert store. When you register the same device with different local account, Device will be registered with the same name but different owner.
+can be registered using personal email or local accounts but it need a corp identity with tenant name.
+
+Authentication for SSO: Cookies will be sent to login.microsoftonline.com endpoint and it will get a token ID for the user to access the resources.
+
+question:- In my org all of my machines are joined to local Active directory, I can see them in AAD portal as AzureADRegistered. None of the user's have signed in manually. How come those devices are registered?
+Ans: This happens when you try to configure outlook application and at the end of the setup, you select the option of "Allow my org to manage this device"
+Commands:
+dsregcmd /status
+workplaceJoined: Yes
+AzureADJoined: No
+AzureADPrt: No
+
+
+*Azure AD Joined Device
+A Device object will be created in AAD. A cloud only organization use this. it can use BYOD. Applicable only to win10 machine, Two cert will populate after joining AAD, First cert(Issued by MS-Organisation-Access) is issued for the Device ID claim which contain the Device ID and the second is the server sert which is issueed for P2P access.
+In Azure AD Joined devices, you will be able to login using you corp account but in case of Azure AD registered you won't.
+Authentication for SSO: Cookies will be sent to login.microsoftonline.com endpoint and it will get a token ID for the user to access the resources.
+We need to look at the "User Device Registeration" log for any detailed information.
+WorkPlaceJoined: No
+AzureADJoined: Yes
+AzureADPRT: Yes
+
+*Hybrid Azure AD Joined Devices:
+AD and AAD joined device.
+Require for Managed Domains: (PTA or PHS) and Seamless SSO should be enabled. AAD Connect version 1.1.819, Enabled hybrid Azure AD join option from AAD Connect setup.
+Device must have access to below mentioned URL's.
+All the computer object's on prem must be in sync scope.
+Service Connection Point(SCP) is created for Device registration, which will be used by all the client machine to know which tenant they have to contact to  get the device registered.
+SCP is used by your devices to discover your Azure AD tenant information, If devices are in different forests, each forest needs an SCP. Azure AD Connect can configure the SCP for you and also provide a script for you to configure the SCP. 
+Required Enterprise Admin credential for adding SCP. SCP will be added to configuration partition.
+AD FFL and DFL 2008R2.
+Windows Current Devices and Windows-down-level devices.
+
+
+certutil -decodehex file.hex cert.cer
+file.hex contain the certificate key
+Start-ADSyncSyncCycle
+
+
+* Hybrid Azure AD Joined Devices- Federated Domains
+- AAD Connect version- 1.1.819 - SCP configuration
+- ADFS or any other identity provider
+- IDP must be able to issue "WIAORMULTIAUTHN" claim
+	This claim is used for windows down level devices.
+- All the OU's should be in sync scope.
+- If you are using ADFS, make sure below mentioned endpoints are enabled.
+- All the below mentioned endpoints must be accessible.
+- ADFS 2012 R2
+
+* ADFS vs Azure AD
+
+* Conditional Access
+- Since all the authentication/authorization is done by Azure AD..Azure AD can make decision based on User, Application, Location, Device, Cleint App. Device could be Hybrid Azure AD joined or compliant device.
+- *Conditional access is the Authorization Model defined in Azure Active Directory as a Service, Which is available with Azure AD premium P1 License.
+
+BaseLine Policies
+Conditions- MFA
+Access Control
+"What if" option
+"Sign in" logs
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+* Privileged Identity Management
+if we don't use PIM:
+- Users will always have permanent access to the protected resources.
+- Also, if you are not using any monitoring tool for privileged access, there can be stale entries of priviledged access.
+- Whenever new access is granted, admin are not notified.
+
+By using PIM
+- No need of giving permanent access to protected resources.
+- you can make users eligible for privileged access.
+- You can define the time frame for which the users will get the access, after which they must request extension.
+- Apart for organized assignment, you will also get notification as well as, you can also monitor all the roled getting assigned in your enterprise.
+
+what is PIM?
+- A service with which just in time access can be provided.
+- You can define the time frame for which the users will get the access, after which they must request extension.
+- whenever a user is requesting priviledged access, you can ask them to complete multi factor authentication.
+
+License Requirement:
+- Azure AD premium P2 or
+- Enterprise Mobility + Security (EMS) E5
+- Microsoft 365 M5
+
+Setup Requirement- PIM:
+- Global Admin Credentials
+- Account that is used to ebabled PIM, become the member of two roles:
+	Privileged role administrator
+	Security Administrator
+- Users member of "Priviledged Rile Administrator", can only managed PIM console
+
+Roles that cannot be managed by PIM:
+- Account Admin
+- Service Admin
+- Co-Administrator
+
+Wizard
+
+
++++++++++++++++++++++++
+Domain in Azure Active Directory:
+By Default when you create a Azure Active Directory or Subscribe for O365 tenant.
+Tenant name UPN suffix will be available for creation of user accounts.
+Custom Domain: Add and verify Domain.
+In order to create users with your own domain suffix, you have to add and verify your domain in Azure active Directory.
+
+Different Identity Model:
+1. Cloud Identity
+2. Synced Identity
+	1. Managed Identities: Authentication will be done by Azure Active Directory, Password Synchronization or ####Passthrough Authetication(Doesn't need domain to be federated)
+	2. Federated Identities:  The Authetication is done on-prem. Ex ADFS
+
+Same Sign-on: Identities are not same in Azure Active Directory and on-prem Active Directory.
+Managed Identities- syncing on prem AD with Azure Active Directory -Password Synchronization.
+Federated Identities: Syncing the object with Azure AD connect and Authentication is done by on-prem ADFS server. The request is redirected by Azure Active Directory to on-prem ADFS.
+++
+
+Azure AD is an Identity store in cloud, who can control the access.
+**Azure AD is microsoft multi tenant cloud based solution.
+Cloud Only:
+Same Sign on: Password Synchronization; Same username/password
+Password will be synchronized to Azure Active Directory using AAD Connect, User will be authenticate using same username/password by Azure Active Directory.
+
+Single Sign on: Federation with ADFS; password won't be synchronized.
+User will be aunthenticated by on-prem Domain Controllers, Azure Active Directory require Federation endpoint[ADFS/Ping/Siteminder] to reach to on-prem DC. 
+
+
+Sync Configuration:
+1. Password Synchronization (Same Sign on)
+2. Pass-Through Authentication(Without a federation Endpoint, we can force user to authenticate via on-prem Active Directory by using this method)
+3. Federation with ADFS(Single Sign on)
+4. Do not Configure
+
+Azure AD IAM:
++++++++++++++
+Azure Authentication
+	Cloud Only Identity
+	Same Sign On
+	Single Sign On
+		AD connect Pass Through
+		ADFS
+		Third Party Federation Technologies(Siteminder, PING)
+		ACS(Azure Control Services);B2C
+
+Federation Protocol
+	WS-Trust(Windows Service Trust)
+	SAML2
+
+Azure AD Connect:
+Integerate your on-premises directories with Azure Active Directory
+
+AAD connect has three component:
+1. Synchronization Services
+2. Active Directory Federation Services component
+3. Azure AD connect Health (Monitoring Component)
+
+Configuration Options Available:
+1. Password Synchronization(Same Sign on)
+2. Pass-Through Authentication
+3. Federation with ADFS(Single Sign on)
+4. Do not Configure(Third Party Federation)
+
+Installation required
+1. Global Admin credentials
+2. Enterprise Admin Credential
+
+Service account created while installation:
+1. On Azure AD: "On-Premises Directory Synchronization"
+2. On-Prem AD: Used in retrive data while sync  
+
+Azure AD Pass Through Authentication:
+*Provides a simple solution to those organizations which require that passwords, even in a hashed form, do not leave theier internal organizational boundaries.
+*When users sign in to Azure AD, the users' passwords are directely validated against your on-prem Active Directory.
+*On-prem passwords are never stored in the cloud in any form.
+*The lightweight on-prem connector only makes outbound connections from within your network. There there is no requirement for installing the connector in a DMZ.
+*Pass-through authentication works seamlessly with Azure MFA.
+*Additional lightweight on-prem connectors can be installed on multiple servers to achieve high availability of sign-in requests.
+
+Authentication Flow:
+1. The user enters their username and password into the Azure AD sign-in page. Azure AD places the username and password(encrypted by using a public key) on a queue for validation.
+2. on-prem pass-through connector makes an outbound call to the queue and retrieves the username and password.
+3. The pass-through connector then validates the username and password against Active Directory.
+4. The on-premises domain controller then evaluates the request and return a response(success or failure) to the connector.
+5. The connector, in turn, returns this response back to Azure AD.
+6. Azure AD then evaluates the response and responds to the user as appropriate.
+
+Port require in Pass-Through Authentication:
+80(require for downloading SSL cert revocation list) and 443 need to open to
+- *.msappproxy.net
+- *.servicebus.windows.net (for Pass through authentication)
+- Azure Data center IP ranges
+
+Single sign on ADFS:
+- ADFS provides wimplified, Secured identity federation and web single sign on capabilities. While they are on the corporate nrtwork, they don't even have to enter their passwords.
+- Federation with Azure AD or O365 enables users to authenticate using on-prem credentials and access all resources in cloud.
+- By using the federation option with ADFS, you can deploy a new or existing farm with ADFS in windows server 2012 R2. If you choose to specify an existing farm, Azure AD connect configures the trust between your farm and Azure AD so that your users can sign in.
+- If you are deploying a new farm, you need:
+	* A windows server 2012 R2 server for the federation server.
+	* A windows server 2012 R2 server for the web application proxy.
+	* A .pfx file with ine SSL certificate for your intended federation serverice name. for ex: adfs.kloudezy.com
+
+
+
+
+*** Self Service Password Reset:
+License Requirement
+-Azure AD premium P1 feature
+-Enterprise Mobility + Security
+-Mocrosoft 365 Enterprises
+
+Feature which provide Account unlock and password reset.
+Feature is applicable for Cloud Indemtity and Synced Identity
+
+Password writeback require
+On prem password policies applied
+Real time synchronus operation
+Admin resetting password from azure portal is also supported.
+Doesn't require any inbound port to be open
+
+Process:
+1. License Assignment
+2. Portal Configuration and Password writeback is enabled
+3. User Registration Process from below:
+	https://aka.ms/securitySetupInfo
+	https://aka.ms/ssprsetup
+Methods:
+MobileNumber For SMS
+Email Address
+Mobile Authenticator app
+
+After the registration Completes, User need to go to https://aka.ms/sspr for password reset.
+
+Portal Configuration:
+
+
+
+
+Source Anchor vs Immutable ID Vs Custom Attribute
+
+Resource access level:
+1. Management Groups
+2. Subscriptions
+3. Resource Groups
+4. Resources
+
+Access Level:
+1. Owner
+2. Contributer
+3. Reader
+
+Questiones: 
+1. How to sync user from A UPN in on-pem to different UPN in cloud
+2. Access Level
+3. Certificate/ADFS
+4. How User came from AAD goes from ADFS to AD in case of single sign on.
+5. Source Anchor vs Immutable ID
+6. Account used while sync to cloud mechanism
+7. Seamless single sign on
+8. STS is a component of ADFS, which talk to the Domain Controller and create a token and send it to the Relying Party.
+9. Access Panel Groups http://myapps.microsoft.com/
+10. Portal.office.com.. admin.microsot.com
+11. PRT
+12. Azure AD Joined device cert
